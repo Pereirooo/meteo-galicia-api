@@ -68,6 +68,19 @@ Configuration is done through environment variables (or a `.env` file):
 | `METEO_DATABASE_URL` | `sqlite:///./meteo.db` |
 | `METEO_INGEST_HOURS` | `72` |
 
+### With Docker
+
+```bash
+docker build -t meteo-galicia-api .
+docker volume create meteo-data
+
+docker run --rm -v meteo-data:/app/data meteo-galicia-api alembic upgrade head
+docker run --rm -v meteo-data:/app/data meteo-galicia-api meteo-ingest
+docker run --rm -v meteo-data:/app/data -p 8000:8000 meteo-galicia-api
+```
+
+The image is a multi-stage build (dependencies are cached in their own layer), runs as a non-root user and includes a health check against `/health`.
+
 ## Development
 
 ```bash
@@ -92,6 +105,7 @@ CI runs lint and tests on every push and pull request.
 - [x] REST API with filters and statistics
 - [x] Tests and CI
 - [x] Schema migrations with Alembic
+- [x] Docker image
 - [ ] PostgreSQL
 - [ ] Docker Compose (API + database + scheduled ingestion)
 - [ ] Daily aggregates and rankings (e.g. rainiest station of the month)
