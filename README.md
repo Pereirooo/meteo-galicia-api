@@ -23,6 +23,7 @@ MeteoGalicia API ──► ingest job ──► database ──► FastAPI ─�
 - **`meteogalicia.py`**: HTTP client that translates MeteoGalicia's JSON (Galician field names, nested lists) into plain dataclasses, isolating the rest of the app from the external format.
 - **`ingest.py`**: downloads stations and hourly measurements and stores them. Observations have a unique constraint on `(station, time, parameter)` and are inserted with `ON CONFLICT DO NOTHING`, so the job can run as often as needed without creating duplicates.
 - **`models.py`**: observations are stored in *long* format (one row per station/time/parameter), so new parameters don't require schema changes.
+- **`migrations/`**: the schema is versioned with [Alembic](https://alembic.sqlalchemy.org/). A test checks that migrations and models never drift apart.
 - **`routers/`**: API endpoints. Statistics are computed in SQL, not in Python.
 
 ## API
@@ -55,6 +56,7 @@ python -m venv .venv
 source .venv/bin/activate
 pip install -e ".[dev]"
 
+alembic upgrade head            # create/update the database schema
 meteo-ingest                    # download the last 72 h into ./meteo.db
 uvicorn meteo_api.main:app --reload
 ```
@@ -73,6 +75,15 @@ pytest                          # tests (no network: MeteoGalicia is mocked)
 ruff check . && ruff format .   # lint + format
 ```
 
+Changing the schema:
+
+```bash
+# 1. edit src/meteo_api/models.py
+alembic revision --autogenerate -m "describe the change"   # 2. generate a migration
+# 3. review the file in migrations/versions/
+alembic upgrade head                                        # 4. apply it
+```
+
 CI runs lint and tests on every push and pull request.
 
 ## Roadmap
@@ -80,7 +91,8 @@ CI runs lint and tests on every push and pull request.
 - [x] Ingestion of stations and hourly observations
 - [x] REST API with filters and statistics
 - [x] Tests and CI
-- [ ] PostgreSQL + Alembic migrations
+- [x] Schema migrations with Alembic
+- [ ] PostgreSQL
 - [ ] Docker Compose (API + database + scheduled ingestion)
 - [ ] Daily aggregates and rankings (e.g. rainiest station of the month)
 - [ ] Deployment

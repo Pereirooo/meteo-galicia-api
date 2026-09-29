@@ -11,6 +11,7 @@ dependencies = [
     "sqlalchemy>=2.0",
     "httpx>=0.27",
     "pydantic-settings>=2.4",
+    "alembic>=1.16",
 ]
 
 [project.optional-dependencies]
@@ -38,3 +39,21 @@ target-version = "py312"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.alembic]
+script_location = "%(here)s/migrations"
+# Name migration files by date so they sort chronologically.
+file_template = "%%(year)d_%%(month).2d_%%(day).2d_%%(hour).2d%%(minute).2d-%%(rev)s_%%(slug)s"
+
+# Lint and format each generated migration so CI stays green.
+[[tool.alembic.post_write_hooks]]
+name = "ruff_format"
+type = "module"
+module = "ruff"
+options = "format REVISION_SCRIPT_FILENAME"
+
+[[tool.alembic.post_write_hooks]]
+name = "ruff_check"
+type = "module"
+module = "ruff"
+options = "check --fix REVISION_SCRIPT_FILENAME"

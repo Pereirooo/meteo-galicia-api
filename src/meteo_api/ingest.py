@@ -13,7 +13,7 @@ from sqlalchemy.dialects import postgresql, sqlite
 from sqlalchemy.orm import Session
 
 from meteo_api.config import settings
-from meteo_api.db import SessionLocal, init_db
+from meteo_api.db import SessionLocal
 from meteo_api.meteogalicia import MeteoGaliciaClient
 from meteo_api.models import Observation, Parameter, Station
 
@@ -72,7 +72,6 @@ def main() -> None:
     args = parser.parse_args()
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
-    init_db()
     with SessionLocal() as session:
         result = ingest(session, MeteoGaliciaClient(), args.hours)
     logger.info(
