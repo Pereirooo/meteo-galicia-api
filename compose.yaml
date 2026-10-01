@@ -1,0 +1,60 @@
+# Local stack: PostgreSQL + migrations + API + hourly ingestion.
+#   docker compose up --build
+# Credentials default to development values; override them in a .env file.
+
+x-app: &app
+  build: .
+  image: meteo-galicia-api
+  environment:
+    METEO_DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-meteo}:${POSTGRES_PASSWORD:-meteo}@db:5432/${POSTGRES_DB:-meteo}
+  restart: unless-stopped
+
+services:
+  db:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-meteo}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-meteo}
+      POSTGRES_DB: ${POSTGRES_DB:-meteo}
+    volumes:
+      - pgdata:/var/lib/postgresql
+    ports:
+      - "5432:5432"  # handy for psql/DBeaver from the host
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  # One-off job: brings the schema up to date, then exits.
+  migrate:
+    <<: *app
+    command: ["alembic", "upgrade", "head"]
+    restart: "no"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  api:
+    <<: *app
+    ports:
+      - "8000:8000"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  ingest:
+    <<: *app
+    command: ["meteo-ingest", "--every", "3600"]
+    # A tiny init process forwards Ctrl+C / `docker compose stop` to our Python process.
+    init: true
+    # The image's health check probes the API, which doesn't run in this container.
+    healthcheck:
+      disable: true
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+volumes:
+  pgdata:

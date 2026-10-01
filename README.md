@@ -68,18 +68,27 @@ Configuration is done through environment variables (or a `.env` file):
 | `METEO_DATABASE_URL` | `sqlite:///./meteo.db` |
 | `METEO_INGEST_HOURS` | `72` |
 
-### With Docker
+### With Docker Compose (PostgreSQL)
 
 ```bash
-docker build -t meteo-galicia-api .
-docker volume create meteo-data
-
-docker run --rm -v meteo-data:/app/data meteo-galicia-api alembic upgrade head
-docker run --rm -v meteo-data:/app/data meteo-galicia-api meteo-ingest
-docker run --rm -v meteo-data:/app/data -p 8000:8000 meteo-galicia-api
+docker compose up --build -d
 ```
 
-The image is a multi-stage build (dependencies are cached in their own layer), runs as a non-root user and includes a health check against `/health`.
+This starts four services:
+
+| Service | What it does |
+|---------|--------------|
+| `db` | PostgreSQL 18, data persisted in the `pgdata` volume |
+| `migrate` | Runs `alembic upgrade head` once the database is healthy, then exits |
+| `api` | The API on http://localhost:8000, started after migrations succeed |
+| `ingest` | Runs `meteo-ingest --every 3600`: ingests MeteoGalicia data every hour |
+
+```bash
+docker compose logs -f ingest   # follow the ingestion job
+docker compose down             # stop (add -v to also delete the data)
+```
+
+Database credentials default to development values (`meteo`/`meteo`); override them with `POSTGRES_USER`, `POSTGRES_PASSWORD` and `POSTGRES_DB` in a `.env` file.
 
 ## Development
 
@@ -106,8 +115,8 @@ CI runs lint and tests on every push and pull request.
 - [x] Tests and CI
 - [x] Schema migrations with Alembic
 - [x] Docker image
-- [ ] PostgreSQL
-- [ ] Docker Compose (API + database + scheduled ingestion)
+- [x] PostgreSQL + Docker Compose (API + database + scheduled ingestion)
+- [ ] Run the test suite against PostgreSQL in CI
 - [ ] Daily aggregates and rankings (e.g. rainiest station of the month)
 - [ ] Deployment
 
