@@ -97,7 +97,17 @@ def main() -> None:
             # A failed run (e.g. MeteoGalicia is down) must not stop the scheduler;
             # the next run re-downloads the whole window, so nothing is lost.
             logger.exception("Ingestion failed; retrying in %d s", args.every)
-        time.sleep(args.every)
+        sleep_until(time.time() + args.every)
+
+
+def sleep_until(deadline: float) -> None:
+    """Sleep until a wall-clock time, in short steps.
+
+    A single long time.sleep() uses a monotonic clock that stops while the host is
+    suspended (e.g. a laptop with the lid closed), so it could oversleep by hours.
+    """
+    while (remaining := deadline - time.time()) > 0:
+        time.sleep(min(remaining, 60))
 
 
 if __name__ == "__main__":
