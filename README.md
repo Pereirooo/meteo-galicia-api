@@ -97,6 +97,15 @@ pytest                          # tests (no network: MeteoGalicia is mocked)
 ruff check . && ruff format .   # lint + format
 ```
 
+By default tests use a throwaway SQLite database. To run them against PostgreSQL (with the Compose stack running):
+
+```bash
+docker compose exec db createdb -U meteo meteo_test    # once
+METEO_TEST_DATABASE_URL=postgresql+psycopg://meteo:meteo@localhost:5432/meteo_test pytest
+```
+
+Tests drop all tables, so they refuse to run unless the database name contains `test`.
+
 Changing the schema:
 
 ```bash
@@ -106,7 +115,7 @@ alembic revision --autogenerate -m "describe the change"   # 2. generate a migra
 alembic upgrade head                                        # 4. apply it
 ```
 
-CI runs lint and tests on every push and pull request.
+CI runs lint, and the test suite on Python 3.12 and 3.13 (SQLite) and against a real PostgreSQL 18, on every push and pull request.
 
 ## Roadmap
 
@@ -116,7 +125,7 @@ CI runs lint and tests on every push and pull request.
 - [x] Schema migrations with Alembic
 - [x] Docker image
 - [x] PostgreSQL + Docker Compose (API + database + scheduled ingestion)
-- [ ] Run the test suite against PostgreSQL in CI
+- [x] Test suite runs against PostgreSQL in CI
 - [ ] Daily aggregates and rankings (e.g. rainiest station of the month)
 - [ ] Deployment
 

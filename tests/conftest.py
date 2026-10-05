@@ -1,15 +1,24 @@
+import os
+
 import httpx
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
+from sqlalchemy import Engine, create_engine, make_url, text
 from sqlalchemy.orm import Session, sessionmaker
-from sqlalchemy.pool import StaticPool
 
 from meteo_api import models  # noqa: F401  (registers the tables)
 from meteo_api.db import Base, get_session
 from meteo_api.ingest import ingest
 from meteo_api.main import app
 from meteo_api.meteogalicia import MeteoGaliciaClient
+
+# Set it to run the suite against a real database (e.g. PostgreSQL in CI).
+# Without it, each test gets a throwaway SQLite file.
+TEST_DATABASE_URL = os.environ.get("METEO_TEST_DATABASE_URL")
+
+# Tests drop all tables: refuse to run against anything that isn't clearly a test database.
+if TEST_DATABASE_URL and "test" not in (make_url(TEST_DATABASE_URL).database or ""):
+    raise RuntimeError(f"Refusing to run tests against non-test database: {TEST_DATABASE_URL}")
 
 # Trimmed-down copies of real MeteoGalicia responses.
 STATIONS_JSON = {
@@ -91,14 +100,32 @@ def meteogalicia_client() -> MeteoGaliciaClient:
     return MeteoGaliciaClient(http)
 
 
+def _drop_everything(engine: Engine) -> None:
+    Base.metadata.drop_all(engine)
+    with engine.begin() as connection:
+        connection.execute(text("DROP TABLE IF EXISTS alembic_version"))
+
+
 @pytest.fixture
-def session() -> Session:
-    # In-memory SQLite shared across threads (TestClient runs the app in another thread).
-    engine = create_engine(
-        "sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool
-    )
-    Base.metadata.create_all(engine)
-    with sessionmaker(bind=engine)() as session:
+def db_engine(tmp_path) -> Engine:
+    """An empty database (no tables), cleaned up again after the test."""
+    if TEST_DATABASE_URL:
+        engine = create_engine(TEST_DATABASE_URL)
+    else:
+        # check_same_thread=False: TestClient runs the app in another thread.
+        engine = create_engine(
+            f"sqlite:///{tmp_path / 'test.db'}", connect_args={"check_same_thread": False}
+        )
+    _drop_everything(engine)  # start clean even if a previous run crashed
+    yield engine
+    _drop_everything(engine)
+    engine.dispose()
+
+
+@pytest.fixture
+def session(db_engine) -> Session:
+    Base.metadata.create_all(db_engine)
+    with sessionmaker(bind=db_engine)() as session:
         yield session
 
 
