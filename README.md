@@ -24,7 +24,8 @@ MeteoGalicia API ──► ingest job ──► database ──► FastAPI ─�
 - **`ingest.py`**: downloads stations and hourly measurements and stores them. Observations have a unique constraint on `(station, time, parameter)` and are inserted with `ON CONFLICT DO NOTHING`, so the job can run as often as needed without creating duplicates.
 - **`models.py`**: observations are stored in *long* format (one row per station/time/parameter), so new parameters don't require schema changes.
 - **`migrations/`**: the schema is versioned with [Alembic](https://alembic.sqlalchemy.org/). A test checks that migrations and models never drift apart.
-- **`routers/`**: API endpoints. Statistics are computed in SQL, not in Python.
+- **`routers/`**: API endpoints. Statistics, daily summaries and rankings are computed in SQL (`GROUP BY`, window functions), not in Python.
+- **`localtime.py`**: timestamps are stored in UTC, but daily aggregates use the **local calendar day** in Galicia (UTC+2 in summer, UTC+1 in winter). PostgreSQL converts with `AT TIME ZONE`; SQLite has no time zones, so it gets the same conversion as a Python function registered on each connection.
 
 ## API
 
@@ -34,6 +35,8 @@ MeteoGalicia API ──► ingest job ──► database ──► FastAPI ─�
 | GET | `/stations/{id}` | Station details |
 | GET | `/stations/{id}/observations?parameter=&since=&until=&limit=` | Observations, newest first |
 | GET | `/stations/{id}/stats?parameter=&since=&until=` | Count, min, max and mean over a time window |
+| GET | `/stations/{id}/daily?parameter=&start=&end=` | Count, min, max, mean and sum per local day |
+| GET | `/rankings?parameter=&day=&stat=&order=&limit=&by_province=` | Stations ranked by a daily statistic (overall or per province) |
 | GET | `/parameters` | Measured variables (code, name, unit) |
 | GET | `/health` | Health check |
 
@@ -48,6 +51,14 @@ curl "localhost:8000/stations/10157/stats?parameter=TA_AVG_1.5m"
 {"station_id":10157,"parameter_code":"TA_AVG_1.5m","unit":"ºC","count":72,
  "min":14.95,"max":21.49,"mean":18.25,"since":null,"until":null}
 ```
+
+The three rainiest stations of each province on a given day:
+
+```bash
+curl "localhost:8000/rankings?parameter=PP_SUM_1.5m&stat=sum&day=2026-10-06&by_province=true&limit=3"
+```
+
+Tied stations share a rank (`RANK()`), so a ranking can have more than `limit` entries.
 
 ## Getting started
 
@@ -67,6 +78,7 @@ Configuration is done through environment variables (or a `.env` file):
 |----------|---------|
 | `METEO_DATABASE_URL` | `sqlite:///./meteo.db` |
 | `METEO_INGEST_HOURS` | `72` |
+| `METEO_TIMEZONE` | `Europe/Madrid` (defines the "day" in daily aggregates) |
 
 ### With Docker Compose (PostgreSQL)
 
@@ -126,7 +138,7 @@ CI runs lint, and the test suite on Python 3.12 and 3.13 (SQLite) and against a 
 - [x] Docker image
 - [x] PostgreSQL + Docker Compose (API + database + scheduled ingestion)
 - [x] Test suite runs against PostgreSQL in CI
-- [ ] Daily aggregates and rankings (e.g. rainiest station of the month)
+- [x] Daily aggregates and rankings, in local time
 - [ ] Deployment
 
 ## Data source

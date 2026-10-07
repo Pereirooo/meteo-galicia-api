@@ -1,16 +1,11 @@
-from typing import Annotated
-
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter
 from sqlalchemy import select
-from sqlalchemy.orm import Session
 
-from meteo_api.db import get_session
 from meteo_api.models import Parameter
+from meteo_api.routers.deps import SessionDep
 from meteo_api.schemas import ParameterOut
 
 router = APIRouter(prefix="/parameters", tags=["parameters"])
-
-SessionDep = Annotated[Session, Depends(get_session)]
 
 
 @router.get("", response_model=list[ParameterOut])

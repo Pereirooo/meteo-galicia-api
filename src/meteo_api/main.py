@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 
-from meteo_api.routers import parameters, stations
+from meteo_api.routers import parameters, rankings, stations
 
 # The database schema is managed by Alembic: run `alembic upgrade head` before starting.
 app = FastAPI(
@@ -10,6 +10,7 @@ app = FastAPI(
 )
 app.include_router(stations.router)
 app.include_router(parameters.router)
+app.include_router(rankings.router)
 
 
 @app.get("/health", tags=["health"])

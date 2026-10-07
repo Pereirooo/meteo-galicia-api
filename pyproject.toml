@@ -13,6 +13,8 @@ dependencies = [
     "pydantic-settings>=2.4",
     "alembic>=1.16",
     "psycopg[binary]>=3.2",
+    # Time zone database for zoneinfo, in case the OS has none (slim images, Windows).
+    "tzdata",
 ]
 
 [project.optional-dependencies]
